@@ -1,0 +1,1862 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+    <meta charset="utf-8">
+	
+    <title>Mobicard | Scan or Upload Card</title>
+	
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="copyright" content="MobiCard">
+    <meta name="author" content="MobiCard">
+
+    <!-- PWA -->
+    <link rel="manifest" href="public/manifest.json">
+    <meta name="theme-color" content="#000000">
+
+    <!-- Bootstrap -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
+
+    <style>
+        body { background:#000; color:#fff; }
+
+        .nav-tabs .nav-link { border-radius:0; color:#aaa; }
+        .nav-tabs .nav-link.active { background:#111; color:#fff; border-color:#333; }
+
+        .camera-container {
+            position: relative;
+            width: 100%;
+            height: 85vh;
+            background: #000;
+            overflow: hidden;
+        }
+
+        video { width:100%; height:100%; object-fit:cover; }
+
+        .scan-frame {
+            position:absolute;
+            top:50%; left:50%;
+            width:85%; height:55%;
+            transform:translate(-50%,-50%);
+            border:2px solid rgba(255,255,255,0.8);
+            border-radius:12px;
+            box-shadow:0 0 0 9999px rgba(0,0,0,0.4);
+            pointer-events:none;
+            transition: all 0.3s ease;
+        }
+
+        .scan-frame.locked {
+            border-color:#0f0;
+            box-shadow:0 0 20px #0f0, 0 0 0 9999px rgba(0,0,0,0.5);
+        }
+
+        .scan-frame.bad { border-color:#f00; }
+
+        .scan-hint {
+            position:absolute;
+            top:20px;
+            width:100%;
+            text-align:center;
+            font-size:14px;
+            color:#0f0;
+            text-shadow:0 0 10px #0f0;
+            z-index:20;
+        }
+		
+        .scan-line {
+            position:absolute;
+            top:0; left:0;
+            width:100%; height:3px;
+            background:rgba(0,255,0,0.8);
+            animation: scanmove 2s linear infinite;
+            z-index:5;
+        }
+
+        @keyframes  scanmove {
+            0% { top:0; }
+            100% { top:100%; }
+        }
+
+        .scan-loader {
+            position:absolute;
+            bottom:80px;
+            width:100%;
+            text-align:center;
+            display:none;
+            color:#0f0;
+        }
+
+        .floating-btn {
+            position:absolute;
+            bottom:20px;
+            left:50%;
+            transform:translateX(-50%);
+            z-index:10;
+        }
+
+        .upload-box {
+            border:2px dashed #444;
+            padding:40px;
+            text-align:center;
+            margin-top:40px;
+        }
+
+        .result-label { color:#777; font-size:12px; }
+    </style>
+	
+	
+	
+	<style>
+		
+		
+		/* Uploading message styles */
+		.uploading-message {
+			display: none;
+			position: fixed;
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%);
+			background: #000000 !important;
+			color: white !important;
+			padding: 20px 30px;
+			border-radius: 10px;
+			z-index: 99999;
+			font-weight: bold;
+			text-align: center;
+			box-shadow: 0 0 20px rgba(0,0,0,0.5);
+			border: 2px solid #fff;
+			font-size: 16px;
+			min-width: 300px;
+		}
+		
+		/* Overlay to block interaction while uploading */
+		.uploading-overlay {
+			display: none;
+			position: fixed;
+			top: 0;
+			left: 0;
+			width: 100%;
+			height: 100%;
+			background: rgba(0,0,0,0.7);
+			z-index: 99998;
+		}
+		
+		/* Lock screen styles */
+		.lock-screen {
+			display: none;
+			position: absolute;
+			top: 0;
+			left: 0;
+			width: 100%;
+			height: 100%;
+			background: rgba(0, 0, 0, 0.85);
+			z-index: 30;
+			flex-direction: column;
+			justify-content: center;
+			align-items: center;
+			color: #fff;
+			text-align: center;
+		}
+		
+		.refresh-icon {
+			font-size: 48px;
+			margin-bottom: 20px;
+			cursor: pointer;
+			animation: pulse 2s infinite;
+			color: #0f0;
+		}
+		
+		@keyframes  pulse {
+			0% { transform: scale(1); opacity: 0.7; }
+			50% { transform: scale(1.1); opacity: 1; }
+			100% { transform: scale(1); opacity: 0.7; }
+		}
+		
+		.lock-message {
+			font-size: 16px;
+			color: #ccc;
+			margin-bottom: 20px;
+		}
+		
+		/* Mobile-specific scan frame adjustments */
+		@media (max-width: 768px) {
+			.scan-frame {
+				width: 92% !important;
+				height: 36% !important;
+				border-width: 3px;
+			}
+		}
+		
+		/* Desktop-specific scan frame adjustments */
+		@media (min-width: 769px) {
+			.scan-frame {
+				margin-top: -20px;
+				width: 45% !important;
+				height: 67% !important;
+			}
+		}
+			
+	</style>
+	
+
+	<style>
+
+		/* ===================== LIGHT RESULT MODAL UI ===================== */
+
+		#result_modal .modal-dialog {
+			max-width: 420px;
+		}
+
+		#result_modal .modal-content {
+			background: linear-gradient(180deg, #ffffff, #f6f8fb);
+			color: #0b1220;
+			border-radius: 18px;
+			border: 1px solid rgba(0,0,0,0.06);
+			box-shadow: 0 20px 50px rgba(0,0,0,0.2);
+			overflow: hidden;
+		}
+
+		/* Header */
+		#result_modal .modal-header {
+			border-bottom: 1px solid rgba(0,0,0,0.08);
+			background: linear-gradient(90deg, #f8fbff, #eef3f9);
+			padding: 18px 20px;
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+		}
+
+		/* Title */
+		#result_modal .modal-title {
+			font-weight: 700;
+			letter-spacing: 0.3px;
+			font-size: 18px;
+			color: #0b1220;
+		}
+
+		/* Success check animation */
+		#result_modal .modal-header::after {
+			/* content: "✓"; */
+			width: 34px;
+			height: 34px;
+			border-radius: 50%;
+			background: linear-gradient(135deg, #22c55e, #16a34a);
+			color: #fff;
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			font-weight: bold;
+			font-size: 18px;
+			box-shadow: 0 6px 18px rgba(34,197,94,0.5);
+			animation: popSuccess 0.6s ease-out;
+		}
+
+		/* Success animation */
+		@keyframes  popSuccess {
+			0% { transform: scale(0); opacity: 0; }
+			60% { transform: scale(1.2); opacity: 1; }
+			100% { transform: scale(1); }
+		}
+
+		/* Body */
+		#result_modal .modal-body {
+			padding: 20px;
+		}
+
+		/* Card blocks */
+		#result_modal .modal-body .mb-2 {
+			background: #ffffff;
+			border-radius: 14px;
+			padding: 12px 14px;
+			margin-bottom: 12px !important;
+			border: 1px solid rgba(0,0,0,0.06);
+			box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+		}
+
+		/* Labels */
+		#result_modal .result-label {
+			font-size: 11px;
+			text-transform: uppercase;
+			letter-spacing: 0.12em;
+			color: #6b7a90;
+			margin-bottom: 4px;
+		}
+
+		/* Values */
+		#result_modal #res_card_number,
+		#result_modal #res_card_expiry {
+			font-size: 18px;
+			font-weight: 700;
+			letter-spacing: 1px;
+			color: #0b1220;
+		}
+
+		/* ===================== CARD BRAND AUTO LOGO ===================== */
+
+		/* Brand container using background on card number field */
+		#result_modal #res_card_number {
+			position: relative;
+			padding-right: 48px;
+		}
+
+		/* Default */
+		#result_modal #res_card_number::after {
+			content: "";
+			position: absolute;
+			right: 0;
+			top: 50%;
+			transform: translateY(-50%);
+			width: 36px;
+			height: 24px;
+			background-size: contain;
+			background-repeat: no-repeat;
+			background-position: center;
+			opacity: 0.9;
+		}
+		
+
+		/* Values */
+		#result_modal #res_card_number_display,
+		#result_modal #res_card_expiry {
+			font-size: 18px;
+			font-weight: 700;
+			letter-spacing: 1px;
+			color: #0b1220;
+		}
+
+		/* ===================== CARD BRAND AUTO LOGO ===================== */
+
+		/* Brand container using background on card number field */
+		#result_modal #res_card_number_display {
+			position: relative;
+			padding-right: 48px;
+		}
+
+		/* Default */
+		#result_modal #res_card_number_display::after {
+			content: "";
+			position: absolute;
+			right: 0;
+			top: 50%;
+			transform: translateY(-50%);
+			width: 36px;
+			height: 24px;
+			background-size: contain;
+			background-repeat: no-repeat;
+			background-position: center;
+			opacity: 0.9;
+		}
+
+
+
+
+		/* Values */
+		#result_modal #res_card_number_display,
+		#result_modal #res_card_expiry {
+			font-size: 18px;
+			font-weight: 700;
+			letter-spacing: 1px;
+			color: #0b1220;
+		}
+
+		/* ===================== CARD BRAND AUTO LOGO ===================== */
+
+		/* Brand container using background on card number field */
+		#result_modal #res_card_number_display {
+			position: relative;
+			padding-right: 48px;
+		}
+
+		/* Default */
+		#result_modal #res_card_number_display::after {
+			content: "";
+			position: absolute;
+			right: 0;
+			top: 50%;
+			transform: translateY(-50%);
+			width: 36px;
+			height: 24px;
+			background-size: contain;
+			background-repeat: no-repeat;
+			background-position: center;
+			opacity: 0.9;
+		}
+
+
+
+
+		
+
+		/* Apply these classes dynamically via JS to #result_modal */
+		#result_modal.visa #res_card_number::after {
+			background-image: url('https://upload.wikimedia.org/wikipedia/commons/4/41/Visa_Logo.png');
+		}
+
+		#result_modal.mastercard #res_card_number::after {
+			background-image: url('https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg');
+		}
+
+		#result_modal.amex #res_card_number::after {
+			background-image: url('https://upload.wikimedia.org/wikipedia/commons/3/30/American_Express_logo.svg');
+		}
+
+		#result_modal.discover #res_card_number::after {
+			background-image: url('https://upload.wikimedia.org/wikipedia/commons/5/5a/Discover_Card_logo.svg');
+		}
+
+		/* ===================== CVV INPUT ===================== */
+
+		#result_modal input.form-control {
+			background: #f8fafc;
+			border: 1px solid rgba(0,0,0,0.12);
+			color: #0b1220;
+			border-radius: 10px;
+			height: 44px;
+			font-size: 16px;
+		}
+
+		#result_modal input.form-control::placeholder {
+			color: #9aa7b8;
+		}
+
+		#result_modal input.form-control:focus {
+			border-color: #2563eb;
+			box-shadow: 0 0 0 2px rgba(37,99,235,0.15);
+			background: #ffffff;
+		}
+
+		/* Footer */
+		#result_modal .modal-footer {
+			border-top: 1px solid rgba(0,0,0,0.08);
+			padding: 16px 20px;
+		}
+
+		/* Buttons */
+		#result_modal .btn-secondary {
+			background: #f1f5f9;
+			border: none;
+			color: #334155;
+			border-radius: 10px;
+			padding: 10px 18px;
+		}
+
+		#result_modal .btn-secondary:hover {
+			background: #e2e8f0;
+			color: #FFFFFF;
+		}
+
+		#result_modal .btn-primary {
+			background: linear-gradient(135deg, #2563eb, #0ea5e9);
+			border: none;
+			border-radius: 10px;
+			padding: 10px 22px;
+			font-weight: 700;
+			box-shadow: 0 8px 20px rgba(37,99,235,0.35);
+		}
+
+		#result_modal .btn-primary:hover {
+			filter: brightness(1.08);
+		}
+
+		/* Modal animation polish */
+		#result_modal.fade .modal-dialog {
+			transform: scale(0.92) translateY(20px);
+			transition: all 0.25s ease;
+		}
+
+		#result_modal.show .modal-dialog {
+			transform: scale(1) translateY(0);
+		}
+
+
+
+		.nav-tabs .nav-link {
+			border-radius: 0;
+			color: #aaa;
+			border-bottom-color: black !important;
+		}
+
+		.nav-tabs .nav-link.active {
+			background: #111;
+			color: #fff;
+			border-color: #333;
+			border-bottom-color: black !important;
+		}
+
+
+
+		/* Validation states */
+		.expiry-label.invalid {
+			color: #dc3545 !important; /* Red color */
+			font-weight: bold;
+		}
+
+		.expiry-input-invalid {
+			border-color: #dc3545 !important;
+			box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25) !important;
+		}
+
+		.expiry-input-valid {
+			border-color: none !important;
+			box-shadow: none !important;
+			
+			font-size: 18px;
+			font-weight: 700;
+			letter-spacing: 1px;
+			color: #0b1220;
+			
+		}
+
+
+		/* Custom button styling for the modal footer */
+		#result_modal .modal-footer {
+			padding: 0 !important;
+		}
+
+		#result_modal .modal-footer .btn {
+			padding: 12px 0;
+			font-weight: 600;
+			font-size: 16px;
+			transition: all 0.2s ease;
+			margin-top : -15px;
+			margin-bottom : 18px;
+			border-radius: 10px;
+		}
+
+		#result_modal .modal-footer .btn-secondary {
+			background-color: #FFFFFF;
+			border: 1px solid #000000;
+			border-radius: 10px;
+		}
+
+		#result_modal .modal-footer .btn-secondary:hover {
+			background-color: #5a6268;
+			border-color: #545b62;
+			border-radius: 10px;
+		}
+
+		#result_modal .modal-footer .btn-primary {
+			background-color: #000 !important;
+			border: 1px solid #000 !important;
+			color: white
+			border-radius: 10px;
+		}
+
+		#result_modal .modal-footer .btn-primary:hover {
+			background-color: #333 !important;
+			border-color: #333 !important;
+			border-radius: 10px;
+		}
+
+		/* Remove Bootstrap's default modal footer border */
+		#result_modal .modal-content {
+			border-radius: 12px;
+			overflow: hidden;
+		}
+
+
+		footer {
+			text-align: center; /* Centers the text horizontally */
+			padding: 20px 0;    /* Adds some breathing room top and bottom */
+			width: 100%;
+		}
+
+		footer p {
+			color: #333333;     /* A very dark grey */
+			font-size: 0.75rem; /* Makes the font small (approx 12px) */
+			font-family: sans-serif; /* Clean look */
+			margin: 0;
+		}
+
+
+	</style>
+
+	
+</head>
+<body>
+
+<div class="container-fluid p-0">
+
+    <!-- Tabs -->
+    <ul class="nav nav-tabs nav-justified" style="border-bottom-color: #111111 !important;">
+        <li class="nav-item"><a class="nav-link active" id="scan_card_tab" data-toggle="tab" href="#scan_tab">Scan Card</a></li>
+        <li class="nav-item"><a class="nav-link" id="upload_card_tab" data-toggle="tab" href="#upload_tab">Upload Card</a></li>
+    </ul>
+
+    <div class="tab-content">
+
+        <!-- ===================== SCAN ===================== -->
+        <div class="tab-pane fade show active" id="scan_tab">
+            <div class="camera-container">
+                <video id="camera_preview" autoplay playsinline></video>
+
+                <div class="scan-hint" id="scan_hint">Align card inside the frame</div>
+                <div class="scan-line"></div>
+                <div class="scan-frame"></div>
+                <div class="scan-loader" id="scan_loader">Scanning… Please hold steady</div>
+                
+                <!-- Lock Screen -->				
+                <div class="lock-screen" id="lock_screen">
+					<div id="refresh_btn">
+						<div class="refresh-icon" id="refresh_icon">⟳</div>
+						<div class="lock-message">Tap to refresh</div>
+					</div>
+				</div>
+
+                <button class="btn btn-light floating-btn" id="capture_btn">Capture Now</button>
+            </div>
+
+            <canvas id="capture_canvas" style="display:none;"></canvas>
+        </div>
+
+        <!-- ===================== UPLOAD ===================== -->
+        <div class="tab-pane fade" id="upload_tab">
+            <div class="container">
+                <div class="upload-box">
+                    <h5>Select Card Image</h5>
+                    <input type="file" id="upload_input" name="mobicard_scan_card_photo" class="form-control mt-3" accept="image/*,application/pdf" style="padding: .375rem .75rem 2.2rem;">
+                    <button class="btn btn-light mt-4" id="upload_submit_btn">Upload & Submit</button>
+                </div>
+				
+				
+								
+
+				<!-- Uploading Message Div -->
+				<div id="uploadingMessage" class="uploading-message">
+					⏳ Uploading... Please wait...
+				</div>
+
+				<div id="uploadingOverlay" class="uploading-overlay"></div>
+				
+            </div>
+        </div>
+
+    </div>
+</div>
+
+
+<!-- ===================== RESULT MODAL ===================== -->
+<div class="modal fade" id="result_modal">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content text-dark">
+            <div class="modal-header">
+                <h5 class="modal-title">Your Checkout Page</h5>
+            </div>
+            <div class="modal-body">
+                <div class="mb-2">
+                    <div class="result-label">Card Number</div>
+                    
+                    <!-- REAL FIELD (submitted) -->
+                    <input type="hidden" id="res_card_number" name="card_number">
+
+                    <!-- USER EDITABLE DISPLAY FIELD -->
+                    <input type="text" id="res_card_number_display" class="form-control" autocomplete="off" inputmode="numeric" placeholder="Card number" required>
+                </div>
+                
+                <div class="mb-2">
+                    <div class="result-label expiry-label">
+                        Expiry
+                    </div>
+                    
+                    <input 
+                        type="text" 
+                        id="res_card_expiry" 
+                        class="form-control" 
+                        autocomplete="off" 
+                        placeholder="MM/YY"
+                        pattern="(0[1-9]|1[0-2])\/([0-9]{2})"
+                        title="Please enter a valid date in MM/YY format"
+                        maxlength="5" required>
+                </div>
+                
+				<div class="mb-2">
+					<div class="result-label cvv-label">
+						CVV<span class="text-danger">*</span>
+					</div>
+					<input 
+						type="tel" 
+						id="res_card_cvv" 
+						class="form-control" 
+						inputmode="numeric"
+						pattern="[0-9]{3,4}"
+						maxlength="4"
+						autocomplete="off"
+						required
+						title="Please enter 3 or 4 digit CVV" required>
+				</div>
+
+
+            </div>
+            <div class="modal-footer p-0 border-0">
+                <div class="row g-0 w-100">
+                    <div class="col-6">
+                        <button class="btn btn-secondary w-100 h-100 rounded-0 rounded-start" 
+                                style="border-radius: 10px 10px 10px 10px !important;"
+                                data-dismiss="modal" 
+                                id="close_modal_btn">
+                            Close
+                        </button>
+                    </div>
+                    <div class="col-6">
+                        <button class="btn btn-primary w-100 h-100 rounded-0 rounded-end" 
+                                style="background: black !important; border-radius: 10px 10px 10px 10px !important;"
+                                id="proceed_btn">
+                            Continue
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+<footer>
+    <p>&copy; <span id="year"></span> MobiCard ScanAPI</p>
+</footer>
+
+
+<!-- JS -->
+
+<script>
+    document.getElementById("year").textContent = new Date().getFullYear();
+</script>
+
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+// ========== DEBUG CONFIGURATION ==========
+const DEBUG_MODE = true; // true = debug on, false = debug off
+
+// Debug logging function
+function debugLog(...args) {
+    if (DEBUG_MODE) {
+        console.log('[Mobicard Debug]', ...args);
+    }
+}
+
+// Debug error logging function
+function debugError(...args) {
+    if (DEBUG_MODE) {
+        console.error('[Mobicard Error]', ...args);
+    }
+}
+// ========== END DEBUG CONFIG ==========
+
+// Timings
+//45
+//700 700ms 
+//45000
+
+const mobicard_scan_card_url = "<?php echo $mobicard_scan_card_url; ?>";
+
+const mobicard_transaction_access_token = "<?php echo $mobicard_transaction_access_token; ?>";
+
+const mobicard_token_id = "<?php echo $mobicard_token_id; ?>";
+
+const video = document.getElementById('camera_preview');
+const canvas = document.getElementById('capture_canvas');
+// Fix for browser console warning - add willReadFrequently attribute
+const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+const scan_hint = document.getElementById('scan_hint');
+const scan_loader = document.getElementById('scan_loader');
+const scan_frame = document.querySelector('.scan-frame');
+const scan_line = document.querySelector('.scan-line');
+const lock_screen = document.getElementById('lock_screen');
+const refresh_btn = document.getElementById('refresh_btn');
+
+let last_frame = null;
+let stable_counter = 0;
+let auto_locked = false;
+let scan_paused = false;
+let idle_timer = null;
+let quality_check_interval = null;
+let last_submit_time = Date.now();
+
+// Add a global flag at the top with other variables
+let initial_capture_and_submit_flag = 0;
+let autoSubmitActive = true;
+let autoSubmitTimeoutIds = [];
+
+// Add these variables at the top with other variables
+let retryCount = 0;
+const MAX_RETRIES = 12;
+
+// Add camera stream variable for cleanup
+let cameraStream = null;
+
+// ================= CAMERA INIT =================
+navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+    .then(stream => {
+        cameraStream = stream; // Store stream for cleanup
+        video.srcObject = stream;
+        // Start idle timer when camera loads
+        resetIdleTimer();
+        // Adjust scan frame for device type
+        adjustScanFrame();
+    })
+    .catch(() => alert("Camera access denied. Please allow camera permissions."));
+
+// Adjust scan frame dimensions based on device
+function adjustScanFrame() {
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    if (isMobile) {
+        // Mobile: Rectangular frame with standard card ratio (1:1.586)
+        scan_frame.style.width = '92%';
+        scan_frame.style.height = '36%'; // 90% 56.8% / 1.586
+    } else {
+        // Desktop: Reduced width with same ratio
+        scan_frame.style.width = '67%';
+        scan_frame.style.height = '45%'; // 65% / 1.586
+    }
+}
+
+// Function to safely stop camera
+function stopCamera() {
+    if (cameraStream) {
+        cameraStream.getTracks().forEach(track => {
+            track.stop();
+        });
+        cameraStream = null;
+        video.srcObject = null;
+    }
+}
+
+// Function to stop all timers and intervals
+function cleanupAllTimers() {
+    // Clear quality check interval
+    if (quality_check_interval) {
+        clearInterval(quality_check_interval);
+        quality_check_interval = null;
+    }
+    
+    // Clear idle timer
+    if (idle_timer) {
+        clearTimeout(idle_timer);
+        idle_timer = null;
+    }
+    
+    // Clear auto-submit timeouts
+    autoSubmitTimeoutIds.forEach(timeoutId => {
+        clearTimeout(timeoutId);
+    });
+    autoSubmitTimeoutIds = [];
+}
+
+// Reset idle timer on user interaction
+function resetIdleTimer() {
+    if (idle_timer) clearTimeout(idle_timer);
+    idle_timer = setTimeout(showLockScreen, 45000); // 45 seconds = 3 minutes
+}
+
+// Show lock screen when idle
+function showLockScreen() {
+    retryCount = MAX_RETRIES; // Reset retry count
+    
+    // Stop camera and cleanup
+    stopCamera();
+    cleanupAllTimers();
+    
+    scan_paused = true;
+    scan_line.style.animationPlayState = 'paused';
+    scan_line.style.opacity = '0.3';
+    lock_screen.style.display = 'flex';
+}
+
+// Hide lock screen and resume scanning
+function hideLockScreen() {
+    scan_paused = false;
+    scan_line.style.animationPlayState = 'running';
+    scan_line.style.opacity = '1';
+    lock_screen.style.display = 'none';
+    
+    // Restart camera and quality checking
+    if (!cameraStream) {
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+            .then(stream => {
+                cameraStream = stream;
+                video.srcObject = stream;
+                if (!quality_check_interval) {
+                    quality_check_interval = setInterval(check_frame_quality, 700);
+                }
+                resetIdleTimer();
+            })
+            .catch(() => alert("Camera access denied. Please allow camera permissions."));
+    } else {
+        if (!quality_check_interval) {
+            quality_check_interval = setInterval(check_frame_quality, 700);
+        }
+        resetIdleTimer();
+    }
+}
+
+// Refresh button click handler
+refresh_btn.addEventListener('click', function() {
+    hideLockScreen();
+    location.reload();
+});
+
+// Track user activity to reset idle timer
+document.addEventListener('click', resetIdleTimer);
+document.addEventListener('mousemove', resetIdleTimer);
+document.addEventListener('keypress', resetIdleTimer);
+document.addEventListener('touchstart', resetIdleTimer);
+
+// ================= MANUAL CAPTURE =================
+$('#capture_btn').on('click', function () {
+    resetIdleTimer();
+
+    scan_paused = true;
+    capture_and_submit();
+});
+
+// ================= AUTO QUALITY LOOP =================
+quality_check_interval = setInterval(check_frame_quality, 700);
+
+function check_frame_quality() {
+    if (scan_paused || video.videoWidth === 0) return;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0);
+
+    const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+    // Motion
+    if (last_frame) {
+        let diff = 0;
+        for (let i = 0; i < frame.data.length; i += 40) diff += Math.abs(frame.data[i] - last_frame.data[i]);
+
+        // Modify your motion detection block to only run auto-submit if flag is active
+        if (initial_capture_and_submit_flag === 0) {
+            initial_capture_and_submit_flag++;
+            
+            // Delay 2 seconds before starting the loop
+            setTimeout(function() {
+                // Loop maximum 5 times
+                for (let i = 0; i < 5; i++) {
+                    // Create closure to preserve the value of i for each iteration
+                    (function(iteration) {
+                        // Schedule each iteration
+                        const timeoutId = setTimeout(function() {
+                            // Check if auto-submit is still active before running
+                            if (autoSubmitActive && retryCount < MAX_RETRIES) {
+                                debugLog(`Running capture_and_submit() - iteration ${iteration + 1}/5`);
+                                capture_and_submit();
+                            }
+                        }, iteration * 2000);//Never below 2000 (2 seconds apart)
+                        
+                        // Store timeout ID so we can clear it if needed
+                        autoSubmitTimeoutIds.push(timeoutId);
+                    })(i);
+                }
+            }, 1000);
+        }
+
+        if (diff > 50000) return bad("Hold your camera steady…");
+    }
+    last_frame = frame;
+
+    // Blur
+    let variance = 0;
+    for (let i = 0; i < frame.data.length; i += 40) variance += Math.abs(frame.data[i] - frame.data[i+4]);
+    if (variance < 20000) return bad("Move closer or improve focus…");
+
+    // Glare
+    let bright = 0;
+    for (let i = 0; i < frame.data.length; i += 40)
+        if (frame.data[i] > 245 && frame.data[i+1] > 245 && frame.data[i+2] > 245) bright++;
+    if (bright > 2000) return bad("Reduce glare / tilt card slightly…");
+
+    // Edges
+    let edges = 0;
+    for (let i = 0; i < frame.data.length; i += 40)
+        if (Math.abs(frame.data[i] - frame.data[i+4]) > 20) edges++;
+    if (edges < 1000) return bad("Align the card fully inside the frame…… Press the capture button when ready!");
+
+    // Passed
+    stable_counter++;
+    scan_hint.innerText = "Perfect — hold still…";
+    scan_frame.classList.add('locked');
+    scan_frame.classList.remove('bad');
+
+    // Auto-submit when image is stable (every 3rd check at 700ms intervals = ~2.1 seconds)
+    if (stable_counter >= 2 && stable_counter <= 60 && !auto_locked) {
+        auto_locked = true;
+        capture_and_submit();
+    }
+}
+
+function bad(msg) {
+    stable_counter = 0;
+    scan_hint.innerText = msg;
+    scan_frame.classList.remove('locked');
+    scan_frame.classList.add('bad');
+}
+
+// ================= CAPTURE & CROP =================
+function capture_and_submit() {
+    last_submit_time = Date.now();
+    
+    scan_loader.style.display = 'block';
+
+    const w = canvas.width;
+    const h = canvas.height;
+
+    // Use scan frame dimensions for cropping
+    const scanFrame = document.querySelector('.scan-frame');
+    const rect = scanFrame.getBoundingClientRect();
+    const containerRect = document.querySelector('.camera-container').getBoundingClientRect();
+    
+    // Calculate relative position within video
+    const crop_x = (rect.left - containerRect.left) / containerRect.width * w;
+    const crop_y = (rect.top - containerRect.top) / containerRect.height * h;
+    const crop_w = rect.width / containerRect.width * w;
+    const crop_h = rect.height / containerRect.height * h;
+
+    const crop_canvas = document.createElement('canvas');
+    crop_canvas.width = crop_w;
+    crop_canvas.height = crop_h;
+    const crop_ctx = crop_canvas.getContext('2d');
+
+    crop_ctx.drawImage(canvas, crop_x, crop_y, crop_w, crop_h, 0, 0, crop_w, crop_h);
+
+    crop_canvas.toBlob(function(blob) {
+        submit_form_data(blob);
+    }, 'image/jpeg', 0.92);
+}
+
+// ================= UPLOAD TAB =================
+$('#upload_card_tab').on('click', function () {
+    // Stop camera when switching to upload tab
+    stopCamera();
+    cleanupAllTimers();
+    showLockScreen();
+});
+
+$('#upload_submit_btn').on('click', function () {
+    setTimeout(showLockScreen, 20);
+    
+    const file = document.getElementById('upload_input').files[0];
+    if (!file) return alert("Please select a file first.");
+    
+    // Show uploading message
+    showUploadingMessage();
+    
+    submit_form_data_upload(file);
+    
+    // Don't call handleFormSubmission() here - it's already handled in submit_form_data_upload
+});
+
+// ================= CLOSE MODAL =================
+$('#close_modal_btn').on('click', function () {
+    setTimeout(showLockScreen, 20);
+});
+
+// ================= PROCEED BUTTON - SHUTDOWN CAMERA =================
+$('#proceed_btn').on('click', function () {
+    // Stop camera and cleanup when proceeding
+    stopCamera();
+    cleanupAllTimers();
+    
+    // Here you would normally submit the form or redirect
+    debugLog("Proceeding with card data...");
+    alert("Card details processed successfully!");
+    
+    // For demo purposes, just close modal
+    $('#result_modal').modal('hide');
+});
+
+// ================= SUBMIT SCAN =================
+function submit_form_data(file_blob) {
+	
+    if (retryCount >= MAX_RETRIES) {
+        setTimeout(showLockScreen, 20);
+        return;
+    }
+    
+    const formData = new FormData();
+	
+    formData.append('mobicard_scan_card_photo', file_blob);
+    formData.append('mobicard_transaction_access_token', mobicard_transaction_access_token);
+    formData.append('mobicard_token_id', mobicard_token_id);
+
+    $.ajax({
+        url: mobicard_scan_card_url,
+        type: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: function (resp) {
+            // Pause scanning lines on capture
+            scan_line.style.animationPlayState = 'paused';
+            scan_line.style.opacity = '0.3';
+            
+            try { if (typeof resp === 'string') resp = JSON.parse(resp); } catch(e){}
+
+            scan_loader.style.display = 'none';
+            auto_locked = false;
+            stable_counter = 0;
+
+            if (resp && resp.status === 'SUCCESS') {
+						
+				// alert(JSON.stringify(resp, null, 2));;
+				
+				debugLog('API Response:', resp);
+
+                if (retryCount < MAX_RETRIES) {
+						
+					autoSubmitActive = false;
+					retryCount = MAX_RETRIES; // Reset retry count on success
+					
+					// Clear any pending auto-submit timeouts
+					autoSubmitTimeoutIds.forEach(timeoutId => {
+						clearTimeout(timeoutId);
+					});
+					autoSubmitTimeoutIds = [];
+
+
+					// Check the expiry validation
+					if (resp.card_information && 
+						resp.card_information.card_validation_checks && 
+						resp.card_information.card_validation_checks.expiry_date === false) {
+						setExpiryInvalid();
+					} else if (resp.card_information && 
+							   resp.card_information.card_validation_checks && 
+							   resp.card_information.card_validation_checks.expiry_date === true) {
+						setExpiryValid();
+					}
+
+					
+					// Stop camera and cleanup
+					stopCamera();
+					cleanupAllTimers();
+					
+
+			
+					setScannedCardNumber(resp.card_information.card_number);
+					
+					$('#res_card_expiry').val(resp.card_information.card_expiry_date);
+					
+					// Set card brand class
+					$('#result_modal')
+						.removeClass('visa mastercard amex discover')
+						.addClass(resp.card_information.card_brand.toLowerCase());
+				   
+					$('#result_modal').modal('show');
+					
+
+					// ========== RESPONSE STRUCTURE GUIDE ==========
+					debugLog('=== AVAILABLE RESPONSE FIELDS ===');
+					debugLog('Use these paths to access response data:');
+					debugLog('');
+					debugLog('MAIN FIELDS:');
+					debugLog('resp.status');
+					debugLog('resp.status_code');
+					debugLog('resp.status_message');
+					debugLog('resp.card_scan_request_id');
+					debugLog('resp.mobicard_txn_reference');
+					debugLog('resp.timestamp');
+					debugLog('');
+					debugLog('CARD INFORMATION:');
+					debugLog('resp.card_information.card_number');
+					debugLog('resp.card_information.card_number_masked');
+					debugLog('resp.card_information.card_expiry_date');
+					debugLog('resp.card_information.card_expiry_month');
+					debugLog('resp.card_information.card_expiry_year');
+					debugLog('resp.card_information.card_brand');
+					debugLog('resp.card_information.card_category');
+					debugLog('resp.card_information.card_bank_name');
+					debugLog('resp.card_information.card_confidence_score');
+					debugLog('resp.card_information.card_token');
+					debugLog('resp.card_information.card_validation_checks.luhn_algorithm');
+					debugLog('resp.card_information.card_validation_checks.brand_prefix');
+					debugLog('resp.card_information.card_validation_checks.expiry_date');
+					debugLog('');
+					debugLog('EXIF INFORMATION:');
+					debugLog('resp.card_exif_information.card_exif_flag');
+					debugLog('resp.card_exif_information.card_exif_is_instant_photo_flag');
+					debugLog('resp.card_exif_information.card_exif_original_timestamp');
+					debugLog('resp.card_exif_information.card_exif_file_datetime');
+					debugLog('resp.card_exif_information.card_exif_file_datetime_digitized');
+					debugLog('resp.card_exif_information.card_exif_device_model');
+					debugLog('resp.card_exif_information.card_exif_device_make');
+					debugLog('');
+					debugLog('RISK INFORMATION:');
+					debugLog('resp.card_risk_information.card_possible_screenshot_flag');
+					debugLog('resp.card_risk_information.card_possible_edited_flag');
+					debugLog('resp.card_risk_information.card_reencode_suspected_flag');
+					debugLog('resp.card_risk_information.card_deepfake_risk_flag');
+					debugLog('resp.card_risk_information.card_risk_score');
+					debugLog('');
+					debugLog('BIIN INFORMATION:');
+					debugLog('resp.card_biin_information.card_biin_flag');
+					debugLog('resp.card_biin_information.card_biin_number');
+					debugLog('resp.card_biin_information.card_biin_scheme');
+					debugLog('resp.card_biin_information.card_biin_prefix');
+					debugLog('resp.card_biin_information.card_biin_type');
+					debugLog('resp.card_biin_information.card_biin_brand');
+					debugLog('resp.card_biin_information.card_biin_prepaid');
+					debugLog('resp.card_biin_information.card_biin_bank_name');
+					debugLog('resp.card_biin_information.card_biin_bank_url');
+					debugLog('resp.card_biin_information.card_biin_bank_city');
+					debugLog('resp.card_biin_information.card_biin_bank_phone');
+					debugLog('resp.card_biin_information.card_biin_bank_logo');
+					debugLog('resp.card_biin_information.card_biin_country_two_letter_code');
+					debugLog('resp.card_biin_information.card_biin_country_name');
+					debugLog('resp.card_biin_information.card_biin_country_numeric');
+					debugLog('resp.card_biin_information.card_biin_risk_flag');
+					debugLog('');
+					debugLog('ADDENDUM DATA:');
+					debugLog('resp.addendum_data');
+					debugLog('');
+					debugLog('=== USAGE EXAMPLE ===');
+					debugLog('// Set card number: setScannedCardNumber(resp.card_information.card_number);');
+					debugLog('// Set expiry: $(\'#res_card_expiry\').val(resp.card_information.card_expiry_date);');
+					debugLog('// Check validation: var isValid = resp.card_information.card_validation_checks.expiry_date;');
+					debugLog('=== END GUIDE ===');
+					
+					
+					showLockScreen();
+					
+				}
+				                
+            } else {
+				
+                retryCount++;
+        
+                // Check if we should retry or show alert
+                if (retryCount < MAX_RETRIES) {
+                    // Auto-retry after 2 seconds
+                    debugLog(`Retrying... attempt ${retryCount}/${MAX_RETRIES}`);
+                    setTimeout(function() {
+                        capture_and_submit();
+                    }, 4000);//Never below 3000 (3 seconds apart)
+                } else {
+                    // Max retries reached, show error in scan loader
+                    scan_loader.style.display = 'block';
+                    scan_loader.innerText = 'Card not detected. Please try again.';
+                    scan_loader.style.color = 'red';
+                                                  
+                    setTimeout(function() {
+                        showLockScreen();;
+                    }, 1000);
+					
+                }
+                                    
+                // Resume scanning lines on error
+                scan_line.style.animationPlayState = 'running';
+                scan_line.style.opacity = '1';
+                scan_paused = false;
+            }
+            
+            hideUploadingMessage();
+        },
+        error: function (resp) {
+
+				
+			// Maximum API Request Rate
+			if (resp.status === 429) {
+
+				stopCamera();
+				cleanupAllTimers();
+				showLockScreen();
+				
+				// alert("Slow down! You are making too many requests.");
+				debugError("Rate limit exceeded - too many requests");
+						
+			}
+							
+						
+            hideUploadingMessage();
+            
+            scan_loader.style.display = 'none';
+            auto_locked = false;
+            stable_counter = 0;
+            
+            retryCount++;
+            
+            // Check if we should retry or show alert
+            if (retryCount < MAX_RETRIES) {
+                // Auto-retry after 3 seconds
+                debugLog(`Retrying after error... attempt ${retryCount}/${MAX_RETRIES}`);
+                setTimeout(function() {
+                    capture_and_submit();
+                }, 4000);//Never below 3000 (3 seconds apart)
+            } else {
+                // Max retries reached, show error in scan loader
+                scan_loader.style.display = 'block';
+                scan_loader.innerText = 'Upload failed. Please check connection and try again.';
+                scan_loader.style.color = 'red';
+                
+                setTimeout(showLockScreen, 2000);
+            }
+            
+            // Resume scanning lines on error
+            scan_line.style.animationPlayState = 'running';
+            scan_line.style.opacity = '1';
+            scan_paused = false;
+
+            // Clear auto-submit timeouts on error
+            autoSubmitTimeoutIds.forEach(timeoutId => {
+                clearTimeout(timeoutId);
+            });
+            autoSubmitTimeoutIds = [];
+        }
+    });
+}
+
+// ================= SUBMIT UPLOAD =================
+function submit_form_data_upload(file_blob) {
+	
+    const formData = new FormData();
+	
+    formData.append('mobicard_scan_card_photo', file_blob);
+    formData.append('mobicard_transaction_access_token', mobicard_transaction_access_token);
+    formData.append('mobicard_token_id', mobicard_token_id);
+
+
+    $.ajax({
+        url: mobicard_scan_card_url,
+        type: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: function (resp) {
+            try { if (typeof resp === 'string') resp = JSON.parse(resp); } catch(e){}
+
+            // Check for status code 430 - requires page refresh
+            if (resp && resp.status_code === '430') {
+                debugError('Status code 430 received - refreshing page');
+                alert('Session expired. Refreshing page...');
+                location.reload();
+                return;
+            }
+            
+            // Also check for other error status codes
+            if (resp && resp.status_code && resp.status_code !== '200' && resp.status_code !== 'SUCCESS') {
+                debugError(`Upload failed with status code: ${resp.status_code}`);
+                alert(`Upload failed: ${resp.status_message || 'Unknown error'}`);
+                hideUploadingMessage();
+                return;
+            }
+
+            if (resp && resp.status === 'SUCCESS') {
+						
+				debugLog('Upload API Response:', resp);							
+
+				// Check the expiry validation
+				if (resp.card_information && 
+					resp.card_information.card_validation_checks && 
+					resp.card_information.card_validation_checks.expiry_date === false) {
+					setExpiryInvalid();
+				} else if (resp.card_information && 
+						   resp.card_information.card_validation_checks && 
+						   resp.card_information.card_validation_checks.expiry_date === true) {
+					setExpiryValid();
+				}
+
+				
+				// Stop camera and cleanup
+				stopCamera();
+				cleanupAllTimers();
+								
+				
+                setScannedCardNumber(resp.card_information.card_number);
+				
+                $('#res_card_expiry').val(resp.card_information.card_expiry_date);
+                
+                // Set card brand class
+                $('#result_modal')
+                    .removeClass('visa mastercard amex discover')
+                    .addClass(resp.card_information.card_brand.toLowerCase());
+                
+                $('#result_modal').modal('show');
+				
+				// ========== RESPONSE STRUCTURE GUIDE ==========
+				debugLog('=== AVAILABLE RESPONSE FIELDS ===');
+				debugLog('Use these paths to access response data:');
+				debugLog('');
+				debugLog('MAIN FIELDS:');
+				debugLog('resp.status');
+				debugLog('resp.status_code');
+				debugLog('resp.status_message');
+				debugLog('resp.card_scan_request_id');
+				debugLog('resp.mobicard_txn_reference');
+				debugLog('resp.timestamp');
+				debugLog('');
+				debugLog('CARD INFORMATION:');
+				debugLog('resp.card_information.card_number');
+				debugLog('resp.card_information.card_number_masked');
+				debugLog('resp.card_information.card_expiry_date');
+				debugLog('resp.card_information.card_expiry_month');
+				debugLog('resp.card_information.card_expiry_year');
+				debugLog('resp.card_information.card_brand');
+				debugLog('resp.card_information.card_category');
+				debugLog('resp.card_information.card_bank_name');
+				debugLog('resp.card_information.card_confidence_score');
+				debugLog('resp.card_information.card_token');
+				debugLog('resp.card_information.card_validation_checks.luhn_algorithm');
+				debugLog('resp.card_information.card_validation_checks.brand_prefix');
+				debugLog('resp.card_information.card_validation_checks.expiry_date');
+				debugLog('');
+				debugLog('EXIF INFORMATION:');
+				debugLog('resp.card_exif_information.card_exif_flag');
+				debugLog('resp.card_exif_information.card_exif_is_instant_photo_flag');
+				debugLog('resp.card_exif_information.card_exif_original_timestamp');
+				debugLog('resp.card_exif_information.card_exif_file_datetime');
+				debugLog('resp.card_exif_information.card_exif_file_datetime_digitized');
+				debugLog('resp.card_exif_information.card_exif_device_model');
+				debugLog('resp.card_exif_information.card_exif_device_make');
+				debugLog('');
+				debugLog('RISK INFORMATION:');
+				debugLog('resp.card_risk_information.card_possible_screenshot_flag');
+				debugLog('resp.card_risk_information.card_possible_edited_flag');
+				debugLog('resp.card_risk_information.card_reencode_suspected_flag');
+				debugLog('resp.card_risk_information.card_deepfake_risk_flag');
+				debugLog('resp.card_risk_information.card_risk_score');
+				debugLog('');
+				debugLog('BIIN INFORMATION:');
+				debugLog('resp.card_biin_information.card_biin_flag');
+				debugLog('resp.card_biin_information.card_biin_number');
+				debugLog('resp.card_biin_information.card_biin_scheme');
+				debugLog('resp.card_biin_information.card_biin_prefix');
+				debugLog('resp.card_biin_information.card_biin_type');
+				debugLog('resp.card_biin_information.card_biin_brand');
+				debugLog('resp.card_biin_information.card_biin_prepaid');
+				debugLog('resp.card_biin_information.card_biin_bank_name');
+				debugLog('resp.card_biin_information.card_biin_bank_url');
+				debugLog('resp.card_biin_information.card_biin_bank_city');
+				debugLog('resp.card_biin_information.card_biin_bank_phone');
+				debugLog('resp.card_biin_information.card_biin_bank_logo');
+				debugLog('resp.card_biin_information.card_biin_country_two_letter_code');
+				debugLog('resp.card_biin_information.card_biin_country_name');
+				debugLog('resp.card_biin_information.card_biin_country_numeric');
+				debugLog('resp.card_biin_information.card_biin_risk_flag');
+				debugLog('');
+				debugLog('ADDENDUM DATA:');
+				debugLog('resp.addendum_data');
+				debugLog('');
+				debugLog('=== USAGE EXAMPLE ===');
+				debugLog('// Set card number: setScannedCardNumber(resp.card_information.card_number);');
+				debugLog('// Set expiry: $(\'#res_card_expiry\').val(resp.card_information.card_expiry_date);');
+				debugLog('// Check validation: var isValid = resp.card_information.card_validation_checks.expiry_date;');
+				debugLog('=== END GUIDE ===');
+                
+				showLockScreen();
+				
+            } else {
+                alert("We couldn't read your card clearly. Please try again.");
+            }
+            
+            hideUploadingMessage();
+        },
+        error: function (xhr, status, error) {
+            hideUploadingMessage();
+            
+            // Check for status 430 in error response
+            if (xhr.status === 430) {
+                debugError('Status 430 received - refreshing page');
+                alert('Session expired. Refreshing page...');
+                location.reload();
+                return;
+            }
+            
+            alert("Upload failed. Please check your connection and try again.");
+            debugError('Upload AJAX error:', status, error);
+        }
+    });
+}
+</script>
+
+
+
+<script>
+    // Function to show the uploading message
+    function showUploadingMessage() {
+        var messageElement = document.getElementById('uploadingMessage');
+        var overlayElement = document.getElementById('uploadingOverlay');
+        
+        if(messageElement && overlayElement) {
+            // Show overlay and message
+            overlayElement.style.display = 'block';
+            messageElement.style.display = 'block';
+            
+            // Ensure they're on top
+            messageElement.style.zIndex = '99999';
+            overlayElement.style.zIndex = '99998';
+        }
+    }
+    
+    // Function to hide the uploading message
+    function hideUploadingMessage() {
+        var messageElement = document.getElementById('uploadingMessage');
+        var overlayElement = document.getElementById('uploadingOverlay');
+        
+        if(messageElement) {
+            messageElement.style.display = 'none';
+        }
+        if(overlayElement) {
+            overlayElement.style.display = 'none';
+        }
+    }
+</script>
+
+
+
+<script>
+	function detectCardType(number) {
+		if (/^3[47]/.test(number)) return 'amex';
+		if (/^4/.test(number)) return 'visa';
+		if (/^5[1-5]/.test(number)) return 'mastercard';
+		if (/^6/.test(number)) return 'discover';
+		return 'unknown';
+	}
+
+	function formatCardNumber(number) {
+		
+		number = number.replace(/\D/g, '');
+		
+		var type = detectCardType(number);
+
+		if (type === 'amex') {
+			// 4-6-5
+			var p1 = number.substring(0, 4);
+			var p2 = number.substring(4, 10);
+			var p3 = number.substring(10, 15);
+			return [p1, p2, p3].filter(Boolean).join('  ');
+		} else {
+			// 4-4-4-4
+			return number.replace(/(.{4})/g, '$1  ').trim();
+		}
+	}
+
+	// When scanner sets card number
+	function setScannedCardNumber(cardNumberRaw) {
+		var clean = cardNumberRaw.replace(/\D/g, '');
+
+		// Set hidden REAL value
+		document.getElementById('res_card_number').value = clean;
+
+		// Set visible formatted value
+		document.getElementById('res_card_number_display').value = formatCardNumber(clean);
+	}
+
+	// User edits visible field
+	document.getElementById('res_card_number_display').addEventListener('input', function(e) {
+		var raw = e.target.value.replace(/\D/g, '');
+
+		// Update hidden real field
+		document.getElementById('res_card_number').value = raw;
+
+		// Reformat display
+		e.target.value = formatCardNumber(raw);
+	});
+
+	// Before submit → strip formatting (safety)
+	document.getElementById('proceed_btn').addEventListener('click', function() {
+		var hidden = document.getElementById('res_card_number');
+		hidden.value = hidden.value.replace(/\D/g, '');
+
+		debugLog("Submitting card:", hidden.value);
+	});
+</script>
+
+
+
+<script>
+
+	const expiryInput = document.getElementById('res_card_expiry');
+	const expiryLabel = document.querySelector('.expiry-label');
+
+	// Store original label color for reset
+	const originalLabelColor = window.getComputedStyle(expiryLabel).color;
+
+	// Function to set invalid state
+	function setExpiryInvalid() {
+		expiryInput.classList.add('expiry-input-invalid');
+		expiryInput.classList.remove('expiry-input-valid');
+		expiryLabel.classList.add('invalid');
+	}
+
+	// Function to set valid state
+	function setExpiryValid() {
+		expiryInput.classList.remove('expiry-input-invalid');
+		expiryInput.classList.add('expiry-input-valid');
+		expiryLabel.classList.remove('invalid');
+	}
+
+	// Function to reset validation state
+	function resetExpiryValidation() {
+		expiryInput.classList.remove('expiry-input-invalid', 'expiry-input-valid');
+		expiryLabel.classList.remove('invalid');
+		expiryInput.style.borderColor = ''; // Keep your existing border reset
+	}
+
+	expiryInput.addEventListener('input', function (e) {
+		// Reset validation on new input
+		resetExpiryValidation();
+		
+		// 1. Remove all non-digit characters
+		let value = e.target.value.replace(/\D/g, '');
+		
+		// 2. Validate Month (First two digits)
+		if (value.length >= 2) {
+			let month = parseInt(value.substring(0, 2));
+			if (month < 1 || month > 12) {
+				// Set invalid state for invalid month
+				setExpiryInvalid();
+				e.target.value = ''; 
+				return;
+			}
+		}
+
+		// 3. Format as MM/YY
+		if (value.length > 2) {
+			e.target.value = value.substring(0, 2) + '/' + value.substring(2, 4);
+		} else {
+			e.target.value = value;
+		}
+
+		// 4. Final Validation (If 5 characters are reached)
+		if (e.target.value.length === 5) {
+			validateExpiry(e.target.value);
+		}
+	});
+
+	function validateExpiry(val) {
+		const [m, y] = val.split('/').map(num => parseInt(num));
+		const now = new Date();
+		
+		// Get last 2 digits of current year (e.g., 2026 -> 26)
+		const currentYear = parseInt(now.getFullYear().toString().slice(-2));
+		const currentMonth = now.getMonth() + 1;
+
+		// Check if date is in the past
+		const isPast = (y < currentYear) || (y === currentYear && m < currentMonth);
+
+		if (isPast) {
+			setExpiryInvalid();
+			debugLog("Card has expired.");
+		} else {
+			setExpiryValid();
+		}
+	}
+
+	// AJAX response handler (you'll need to integrate this with your existing AJAX call)
+	function handleAjaxResponse(resp) {
+		// Assuming resp.card_information.card_validation_checks.expiry_date is a boolean
+		const isValid = resp.card_information.card_validation_checks.expiry_date;
+		
+		if (!isValid) {
+			setExpiryInvalid();
+		} else {
+			setExpiryValid();
+		}
+	}
+
+	// Limit backspace/delete behavior for smoother UX
+	expiryInput.addEventListener('keydown', function(e) {
+		if (e.target.value.length >= 5 && e.key !== 'Backspace' && e.key !== 'Tab') {
+			e.preventDefault();
+		}
+	});
+
+	// Reset on blur if empty
+	expiryInput.addEventListener('blur', function() {
+		if (!this.value.trim()) {
+			resetExpiryValidation();
+		}
+	});
+
+	// Initial reset
+	resetExpiryValidation();
+
+
+</script>
+
+
+<script>
+
+	const cvvInput = document.getElementById('res_card_cvv');
+	const cvvLabel = document.querySelector('.cvv-label');
+
+	// Function to validate CVV
+	function validateCVV(value) {
+		// Remove any non-digit characters
+		const cleanValue = value.replace(/\D/g, '');
+		
+		// Check if it's 3 or 4 digits
+		if (cleanValue.length === 3 || cleanValue.length === 4) {
+			return {
+				isValid: true,
+				length: cleanValue.length,
+				value: cleanValue
+			};
+		}
+		
+		return {
+			isValid: false,
+			length: cleanValue.length,
+			value: cleanValue
+		};
+	}
+
+	// Real-time input formatting and validation
+	cvvInput.addEventListener('input', function(e) {
+		// Remove non-digit characters
+		let value = e.target.value.replace(/\D/g, '');
+		
+		// Limit to 4 digits
+		if (value.length > 4) {
+			value = value.substring(0, 4);
+		}
+		
+		// Update input value
+		e.target.value = value;
+		
+		// Validate
+		const validation = validateCVV(value);
+		updateCVVUI(validation);
+	});
+
+	// Function to update UI based on validation
+	function updateCVVUI(validation) {
+		if (validation.value === '') {
+			// Empty state
+			cvvInput.classList.remove('is-valid', 'is-invalid');
+			cvvLabel.classList.remove('invalid');
+			return;
+		}
+		
+		if (validation.isValid) {
+			// Valid state
+			cvvInput.classList.remove('is-invalid');
+			cvvInput.classList.add('is-valid');
+			cvvLabel.classList.remove('invalid');
+		} else {
+			// Invalid state
+			cvvInput.classList.remove('is-valid');
+			cvvInput.classList.add('is-invalid');
+			cvvLabel.classList.add('invalid');
+		}
+	}
+
+	// Blur validation (final check)
+	cvvInput.addEventListener('blur', function() {
+		const validation = validateCVV(this.value);
+		updateCVVUI(validation);
+	});
+
+	// Prevent paste of non-numeric characters
+	cvvInput.addEventListener('paste', function(e) {
+		e.preventDefault();
+		const pastedText = (e.clipboardData || window.clipboardData).getData('text');
+		const numericOnly = pastedText.replace(/\D/g, '');
+		
+		// Insert at cursor position
+		const start = this.selectionStart;
+		const end = this.selectionEnd;
+		const currentValue = this.value;
+		
+		this.value = currentValue.substring(0, start) + 
+					 numericOnly.substring(0, 4 - (currentValue.length - (end - start))) + 
+					 currentValue.substring(end);
+		
+		// Validate after paste
+		const validation = validateCVV(this.value);
+		updateCVVUI(validation);
+		
+		// Move cursor to end of inserted text
+		const newCursorPos = start + numericOnly.length;
+		this.setSelectionRange(newCursorPos, newCursorPos);
+	});
+
+	// Integration with your existing card validation system
+	function validateAllCardFields() {
+		const cardNumber = document.getElementById('res_card_number_display').value.replace(/\s/g, '');
+		const expiry = document.getElementById('res_card_expiry').value;
+		const cvv = cvvInput.value;
+		
+		const cvvValidation = validateCVV(cvv);
+		const expiryValidation = validateExpiry(expiry); // Your existing function
+		const cardNumberValidation = validateCardNumber(cardNumber); // Your card number validation
+		
+		return {
+			cvv: cvvValidation,
+			expiry: expiryValidation,
+			cardNumber: cardNumberValidation,
+			isValid: cvvValidation.isValid && expiryValidation.isValid && cardNumberValidation.isValid
+		};
+	}
+
+	// Optional: Auto-detect American Express (AMEX cards start with 34 or 37)
+	function detectCardType(cardNumber) {
+		const cleaned = cardNumber.replace(/\D/g, '');
+		
+		if (/^3[47]/.test(cleaned)) {
+			return 'amex';
+		} else if (/^4/.test(cleaned)) {
+			return 'visa';
+		} else if (/^5[1-5]/.test(cleaned)) {
+			return 'mastercard';
+		} else if (/^6(?:011|5)/.test(cleaned)) {
+			return 'discover';
+		}
+		
+		return 'unknown';
+	}
+
+	// Optional: Update CVV placeholder based on card type
+	function updateCVVPlaceholder(cardNumber) {
+		const cardType = detectCardType(cardNumber);
+		
+		if (cardType === 'amex') {
+			cvvInput.placeholder = 'Enter 4-digit CVV';
+			cvvInput.pattern = '[0-9]{4}';
+			cvvInput.maxLength = '4';
+			cvvInput.title = 'American Express requires 4-digit CVV';
+		} else {
+			cvvInput.placeholder = 'Enter 3-digit CVV';
+			cvvInput.pattern = '[0-9]{3}';
+			cvvInput.maxLength = '3';
+			cvvInput.title = 'Please enter 3-digit CVV';
+		}
+	}
+
+	// If you have card number input, you can connect them
+	const cardNumberInput = document.getElementById('res_card_number_display');
+	if (cardNumberInput) {
+		cardNumberInput.addEventListener('input', function() {
+			updateCVVPlaceholder(this.value);
+		});
+	}
+
+	// Form submission validation
+	document.getElementById('proceed_btn').addEventListener('click', function(e) {
+		const validation = validateAllCardFields();
+		
+		if (!validation.isValid) {
+			e.preventDefault();
+			
+			// Highlight invalid fields
+			if (!validation.cvv.isValid) {
+				cvvInput.classList.add('is-invalid');
+				cvvLabel.classList.add('invalid');
+				cvvInput.focus();
+			}
+			
+			// Show error message
+			alert('Please check all card details are correct.');
+		}
+	});
+
+</script>
+
+
+</body>
+</html>
