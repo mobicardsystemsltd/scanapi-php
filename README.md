@@ -1,2 +1,4 @@
 # scan-api
-Transform user checkout experiences with our intelligent card scanning technology. 
+ PHP implementation of Scan API
+Resources
+
