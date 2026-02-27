@@ -6,14 +6,15 @@
 
 $mobicard_version = "2.0";
 $mobicard_mode = "LIVE"; // production
-$mobicard_merchant_id = "";
-$mobicard_api_key = "";
-$mobicard_secret_key = "";
 
-$mobicard_token_id = abs(rand(1000000,1000000000));
+$mobicard_merchant_id = "4";
+$mobicard_api_key = "YmJkOGY0OTZhMTU2ZjVjYTIyYzFhZGQyOWRiMmZjMmE2ZWU3NGIxZWM3ZTBiZSJ9";
+$mobicard_secret_key = "NjIwYzEyMDRjNjNjMTdkZTZkMjZhOWNiYjIxNzI2NDQwYzVmNWNiMzRhMzBjYSJ9";
+
+$mobicard_token_id = abs(rand(1000000, 1000000000));
 $mobicard_token_id = "$mobicard_token_id";
 
-$mobicard_txn_reference = abs(rand(1000000,1000000000));
+$mobicard_txn_reference = abs(rand(1000000, 1000000000));
 $mobicard_txn_reference = "$mobicard_txn_reference";
 
 $mobicard_service_id = "20000"; // Scan Card service ID
@@ -68,16 +69,16 @@ curl_close($curl_mobicard);
 // Parse Response
 $mobicard_curl_response = json_decode($mobicard_curl_response, true);
 
-var_dump($mobicard_curl_response);
+//var_dump($mobicard_curl_response);
 
-if($mobicard_curl_response && $mobicard_curl_response['status_code'] == "200") {
+if ($mobicard_curl_response && $mobicard_curl_response['status_code'] == "200") {
     $status_code = $mobicard_curl_response['status_code'];
     $status_message = $mobicard_curl_response['status_message'];
     $mobicard_transaction_access_token = $mobicard_curl_response['mobicard_transaction_access_token'];
     $mobicard_token_id = $mobicard_curl_response['mobicard_token_id'];
     $mobicard_txn_reference = $mobicard_curl_response['mobicard_txn_reference'];
     $mobicard_scan_card_url = $mobicard_curl_response['mobicard_scan_card_url'];
-    
+
     // These variables are now available for the UI script
     // $mobicard_transaction_access_token, $mobicard_token_id, $mobicard_scan_card_url
 } else {
@@ -85,3 +86,6 @@ if($mobicard_curl_response && $mobicard_curl_response['status_code'] == "200") {
     var_dump($mobicard_curl_response);
     exit();
 }
+
+
+include 'mobiscan_view_file.html';
