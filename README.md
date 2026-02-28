@@ -1,4 +1,5 @@
-# SCAN API
+# Payment Card Scan API
+## MobiCard ScanAPI
 
 The SCAN API provides a complete UI solution for card scanning using a device camera.  
 It enables card capture directly from a web browser using either a laptop or mobile device.
