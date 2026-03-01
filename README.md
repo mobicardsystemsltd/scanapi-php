@@ -43,7 +43,7 @@ Test Demo:
 2. Move the project folder to your web server directory.
 
 For example, in a local development environment:
-http://localhost/scanapi-php-main/index.php
+`http://localhost/scanapi-php-main/index.php`
 
 
 Opening this URL will load the card capture page.
