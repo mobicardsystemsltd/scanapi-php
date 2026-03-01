@@ -3,6 +3,7 @@
 ### PHP
 
 The SCAN API provides a complete UI solution for card scanning using a device’s camera.
+
 It enables card capture directly from a web browser or mobile application on a laptop or mobile device.
 
 ---
@@ -10,6 +11,7 @@ It enables card capture directly from a web browser or mobile application on a l
 ## Overview
 
 This solution enables you to securely scan, capture and access payment card information through deployment on your own server infrastructure.
+
 The application accesses the device camera, scans a card, and displays the captured card details on the screen.
 
 ---
