@@ -14,6 +14,25 @@ This solution enables you to securely scan, capture and access payment card info
 
 The application accesses the device camera, scans a card, and displays the captured card details on the screen.
 
+
+
+Test Demo:
+
+- Test using your payment card by clicking on the green
+  <a href="https://mobicardsystems.com/apis"
+     target="_blank"
+     rel="noopener noreferrer"
+     style="background-color:#2ea44f;
+            color:white;
+            padding:8px 14px;
+            text-decoration:none;
+            border-radius:6px;
+            font-weight:600;
+            display:inline-block;">
+    Test Live Demo
+  </a> button on the MobiCard APIs page.
+
+
 ---
 
 ## Getting Started
