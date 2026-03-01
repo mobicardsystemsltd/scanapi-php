@@ -4,7 +4,7 @@
 
 The SCAN API provides a complete UI solution for card scanning using a device’s camera.
 
-It enables card capture directly from a web browser or mobile application on a laptop or mobile device.
+It enables card capture directly from a web browser on a laptop or mobile device. Preferrably, use Method 2 or theprovided implementation options for enhanced mobile app intergration.
 
 ---
 
