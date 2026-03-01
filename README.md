@@ -2,8 +2,8 @@
 ## MobiCard ScanAPI - Method 1
 ### PHP
 
-The SCAN API provides a complete UI solution for card scanning using a device camera.  
-It enables card capture directly from a web browser or mobile application using either a laptop or mobile device.
+The SCAN API provides a complete UI solution for card scanning using a device’s camera.
+It enables card capture directly from a web browser or mobile application on a laptop or mobile device.
 
 ---
 
