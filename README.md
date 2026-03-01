@@ -9,7 +9,7 @@ It enables card capture directly from a web browser using either a laptop or mob
 
 ## Overview
 
-This solution allows you to test card scanning by hosting a simple web application on your own server.  
+This solution allows you to scan a payment card by hosting it on your own server.  
 The application accesses the device camera, scans a card, and displays the captured card details on the screen.
 
 ---
